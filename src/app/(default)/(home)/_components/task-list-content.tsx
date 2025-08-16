@@ -1,7 +1,7 @@
 "use client";
 
 import { Task } from "@/types/task";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
     Trash2,
     Edit3,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteTask, fetchTasks } from "../actions";
 
 const statusOptions = [
@@ -23,13 +24,10 @@ const statusOptions = [
 ];
 
 export default function TaskListContent() {
-    const [tasks, setTasks] = useState<Task[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string>("");
     const [currentPage, setCurrentPage] = useState<number>(1);
-    const [totalPages, setTotalPages] = useState<number>(1);
     const [statusFilter, setStatusFilter] = useState<string>("");
     const router = useRouter();
+    const queryClient = useQueryClient();
 
     const [deleteModal, setDeleteModal] = useState<{
         show: boolean;
@@ -43,54 +41,59 @@ export default function TaskListContent() {
 
     const limit = 10;
 
-    const loadTasks = useCallback(async () => {
-        setLoading(true);
-        setError("");
-
-        try {
-            const result = await fetchTasks({
+    const {
+        data: tasksData,
+        isLoading,
+        isError,
+    } = useQuery({
+        queryKey: ["tasks", currentPage, statusFilter, limit],
+        queryFn: () =>
+            fetchTasks({
                 page: currentPage,
                 limit,
                 status: statusFilter,
-            });
+            }),
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        retry: 2,
+    });
 
+    const deleteMutation = useMutation({
+        mutationFn: (taskId: string) => deleteTask(taskId),
+        onSuccess: (result, taskId) => {
             if (result.success) {
-                setTasks(result.data || []);
-                setTotalPages(result.data.totalPages || 1);
-            }
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (err) {
-            setError("Failed to load tasks");
-            setTasks([]);
-        } finally {
-            setLoading(false);
-        }
-    }, [currentPage, statusFilter]);
+                queryClient.invalidateQueries({ queryKey: ["tasks"] });
 
-    const handleDeleteTask = async (taskId: string | null) => {
-        if (!taskId) return;
-        setLoading(true);
-        try {
-            const result = await deleteTask(taskId);
+                queryClient.setQueryData(
+                    ["tasks", currentPage, statusFilter, limit],
+                    (oldData: { data: Task[] }) => {
+                        if (!oldData?.data) return oldData;
+                        return {
+                            ...oldData,
+                            data: oldData.data.filter(
+                                (task: Task) => task.id !== taskId
+                            ),
+                        };
+                    }
+                );
 
-            if (result.success) {
-                setTasks(tasks.filter((task) => task.id !== taskId));
                 setDeleteModal({ show: false, taskId: null, taskTitle: "" });
-
-                if (result.message.includes("offline")) {
-                    toast.success(result.message);
-                } else {
-                    toast.success(result.message);
-                }
+                toast.success(result.message);
             } else {
                 toast.error("Failed to delete task");
             }
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        } catch (error) {
+        },
+        onError: () => {
             toast.error("Failed to delete task");
-        } finally {
-            setLoading(false);
-        }
+        },
+    });
+
+    const tasks = tasksData?.data || [];
+    const totalPages = tasksData?.data?.totalPages || 1;
+
+    const handleDeleteTask = async (taskId: string | null) => {
+        if (!taskId) return;
+        deleteMutation.mutate(taskId);
     };
 
     const getStatusBadgeColor = (status: string) => {
@@ -125,14 +128,12 @@ export default function TaskListContent() {
     const handleCreateTask = () => {
         router.push("/tasks");
     };
+
     const handleEditTask = (id: string) => {
         router.push(`/tasks/edit/${id}`);
     };
 
-    useEffect(() => {
-        loadTasks();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentPage, statusFilter]);
+    const errorMessage = isError ? "Failed to load tasks" : "";
 
     return (
         <div className="max-w-6xl mx-auto p-6 bg-white">
@@ -176,17 +177,20 @@ export default function TaskListContent() {
                     </div>
                 </div>
             </div>
-            {error && (
+
+            {errorMessage && (
                 <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-yellow-800">{error}</p>
+                    <p className="text-yellow-800">{errorMessage}</p>
                 </div>
             )}
-            {loading && (
+
+            {isLoading && (
                 <div className="flex justify-center items-center py-12">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                 </div>
             )}
-            {!loading && (
+
+            {!isLoading && (
                 <div className="space-y-4">
                     {tasks.length === 0 ? (
                         <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -198,7 +202,7 @@ export default function TaskListContent() {
                             </p>
                         </div>
                     ) : (
-                        tasks.map((task) => (
+                        tasks.map((task: Task) => (
                             <div
                                 key={task.id}
                                 className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
@@ -254,7 +258,7 @@ export default function TaskListContent() {
                 </div>
             )}
 
-            {!loading && tasks.length > 0 && totalPages > 1 && (
+            {!isLoading && tasks.length > 0 && totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 mt-8">
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
@@ -294,6 +298,7 @@ export default function TaskListContent() {
                     </button>
                 </div>
             )}
+
             {deleteModal.show && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -328,11 +333,14 @@ export default function TaskListContent() {
                                 onClick={() =>
                                     handleDeleteTask(deleteModal.taskId)
                                 }
-                                disabled={loading}
-                                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                                disabled={deleteMutation.isPending}
+                                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
                             >
-                                {loading ? (
-                                    <Loader2 className="animate-spin" />
+                                {deleteMutation.isPending ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Deleting...
+                                    </>
                                 ) : (
                                     "Delete"
                                 )}
