@@ -169,7 +169,7 @@ export default function FormCreateNewTask() {
                         </Button>
                         <Button
                             type="submit"
-                            disabled={isLoading || !form.formState.isValid}
+                            disabled={isLoading}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                         >
                             {isLoading ? (
