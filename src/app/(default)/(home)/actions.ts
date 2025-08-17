@@ -13,9 +13,12 @@ export async function fetchTasks({ limit, page, status }: IFetchTask) {
         if (page) params.append("page", page.toString());
         if (limit) params.append("limit", limit.toString());
 
-        const response = await fetch(process.env.API_URL + `/tasks?${params}`, {
-            method: "GET",
-        });
+        const response = await fetch(
+            process.env.NEXT_PUBLIC_API_URL + `/tasks?${params}`,
+            {
+                method: "GET",
+            }
+        );
 
         if (response.ok) {
             const data = await response.json();
@@ -35,9 +38,12 @@ export async function fetchTasks({ limit, page, status }: IFetchTask) {
 
 export async function deleteTask(id: string) {
     try {
-        const response = await fetch(process.env.API_URL + `/tasks/${id}`, {
-            method: "DELETE",
-        });
+        const response = await fetch(
+            process.env.NEXT_PUBLIC_API_URL + `/tasks/${id}`,
+            {
+                method: "DELETE",
+            }
+        );
 
         if (response.ok) {
             return { success: true, message: "Task deleted successfully!" };
@@ -62,13 +68,16 @@ export async function updateTask(
     }
 ) {
     try {
-        const response = await fetch(process.env.API_URL + `/tasks/${id}`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(taskData),
-        });
+        const response = await fetch(
+            process.env.NEXT_PUBLIC_API_URL + `/tasks/${id}`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(taskData),
+            }
+        );
 
         if (response.ok) {
             const updatedTask = await response.json();
@@ -95,14 +104,17 @@ export async function createTask(taskData: {
     description?: string;
 }) {
     try {
-        const response = await fetch(process.env.API_URL + "/tasks", {
-            method: "POST",
-            headers: {
-                Accept: "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(taskData),
-        });
+        const response = await fetch(
+            process.env.NEXT_PUBLIC_API_URL + "/tasks",
+            {
+                method: "POST",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(taskData),
+            }
+        );
 
         if (response.ok) {
             const newTask = await response.json();
@@ -126,9 +138,12 @@ export async function createTask(taskData: {
 
 export async function getTaskDetails(id: string) {
     try {
-        const response = await fetch(process.env.API_URL + `/tasks/${id}`, {
-            method: "GET",
-        });
+        const response = await fetch(
+            process.env.NEXT_PUBLIC_API_URL + `/tasks/${id}`,
+            {
+                method: "GET",
+            }
+        );
 
         if (response.ok) {
             const task = await response.json();

@@ -1,7 +1,6 @@
 "use client";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Task } from "@/types/task";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Container from "@/components/container";
@@ -12,43 +11,35 @@ export default function EditTaskPage() {
     const params = useParams();
     const router = useRouter();
 
-    const [task, setTask] = useState<Task | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);
-
     const taskId = params.id ? (params.id as string) : null;
 
-    useEffect(() => {
-        const fetchTask = async () => {
+    const {
+        data: task,
+        isLoading,
+        isError,
+        error,
+    } = useQuery({
+        queryKey: ["task", taskId],
+        queryFn: async () => {
             if (!taskId) {
-                setError("Invalid task ID");
-                setLoading(false);
-                return;
+                throw new Error("Invalid task ID");
             }
 
-            setLoading(true);
-            try {
-                const response = await getTaskDetails(taskId);
+            const response = await getTaskDetails(taskId);
 
-                if (response.success) {
-                    setTask(response.data);
-                    setError(null);
-                    return;
-                } else {
-                    throw new Error("Server fetch failed");
-                }
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            } catch (error) {
-                setError("Failed to fetch task");
-            } finally {
-                setLoading(false);
+            if (!response.success) {
+                throw new Error("Failed to fetch task");
             }
-        };
 
-        fetchTask();
-    }, [taskId]);
+            return response.data;
+        },
+        enabled: !!taskId,
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        retry: 2,
+    });
 
-    if (loading) {
+    if (isLoading) {
         return (
             <Container>
                 <div className="w-full flex items-center justify-center min-h-[400px]">
@@ -61,7 +52,10 @@ export default function EditTaskPage() {
         );
     }
 
-    if (error || !task) {
+    if (isError || !task) {
+        const errorMessage =
+            error instanceof Error ? error.message : "Task not found";
+
         return (
             <Container>
                 <div className="max-w-2xl mx-auto p-6">
@@ -86,7 +80,7 @@ export default function EditTaskPage() {
                             <span className="text-red-600 text-xl">⚠️</span>
                         </div>
                         <h2 className="text-lg font-semibold text-red-800 mb-2">
-                            {error || "Task not found"}
+                            {errorMessage}
                         </h2>
                         <p className="text-red-600 mb-4">
                             The task you&apos;re looking for doesn&apos;t exist
